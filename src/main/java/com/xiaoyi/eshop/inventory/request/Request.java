@@ -8,4 +8,8 @@ public interface Request {
     void process();
 
     Integer getProductId();
+
+    default boolean isForceRefresh() {
+        return false;
+    };
 }

@@ -2,14 +2,21 @@ package com.xiaoyi.eshop.inventory.request;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RequestQueue {
 
     /**
      * 内存队列
      */
-    private List<ArrayBlockingQueue<Request>> queues = new ArrayList<ArrayBlockingQueue<Request>>();
+    private List<ArrayBlockingQueue<Request>> queues = new ArrayList<>();
+
+    /**
+     * 标志位map
+     */
+    Map<Integer,Boolean> flagMap = new ConcurrentHashMap<>();
 
     private static class Singleton {
         private static RequestQueue instance;
@@ -57,5 +64,12 @@ public class RequestQueue {
      */
     public ArrayBlockingQueue<Request> getQueue(int index) {
         return queues.get(index);
+    }
+
+    /**
+     * 获取标志位map
+     */
+    public Map getFlagMap() {
+        return flagMap;
     }
 }

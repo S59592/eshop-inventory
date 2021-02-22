@@ -32,6 +32,10 @@ public class ProductInventoryController {
     @RequestMapping("/updateProductInventory")
     @ResponseBody
     public Response updateProductInventory(ProductInventory productInventory) {
+        // 为了简单起见，我们就不用log4j那种日志框架去打印日志了
+        // 其实log4j也很简单，实际企业中都是用log4j去打印日志的，自己百度一下
+        System.out.println("===========日志===========: 接收到更新商品库存的请求，商品id=" + productInventory.getProductId() + ", 商品库存数量=" + productInventory.getInventoryCnt());
+
         Response response = null;
         try {
             Request request = new ProductInventoryDBUpdateRequest(productInventory, productInventoryService);
@@ -50,10 +54,12 @@ public class ProductInventoryController {
     @RequestMapping("/getProductInventory")
     @ResponseBody
     public ProductInventory getProductInventory(Integer productId) {
+        System.out.println("===========日志===========: 接收到一个商品库存的读请求，商品id=" + productId);
+
         ProductInventory productInventory = null;
 
         try {
-            Request request = new ProductInventoryCacheRefreshRequest(productId,productInventoryService);
+            Request request = new ProductInventoryCacheRefreshRequest(productId, productInventoryService, false);
             requestAsyncProcessService.process(request);
 
             // 将请求扔给service异步去处理以后，就需要while(true)一会儿，在这里hang住
@@ -63,6 +69,7 @@ public class ProductInventoryController {
             long waitTime = 0L;
 
             while (true) {
+                // 一般公司里面，面向用户的读请求控制在200ms就可以了
                 if(waitTime > 200) {
                     break;
                 }
@@ -70,6 +77,7 @@ public class ProductInventoryController {
                 productInventory = productInventoryService.getProductInventoryCache(productId);
                 // 如果读取到了结果，那么就返回
                 if(productInventory != null) {
+                    System.out.println("===========日志===========: 在200ms内读取到了redis中的库存缓存，商品id=" + productInventory.getProductId() + ", 商品库存数量=" + productInventory.getInventoryCnt());
                     return productInventory;
                 } else { // 如果没有读取到结果，那么等待一段时间
                     Thread.sleep(20);
@@ -80,6 +88,14 @@ public class ProductInventoryController {
             // 直接尝试从数据库中读取数据
             productInventory = productInventoryService.findProductInventory(productId);
             if(productInventory != null) {
+                // 代码会运行到这里，只有三种情况：
+                // 1、就是说，上一次也是读请求，数据刷入了redis，但是redis LRU算法给清理掉了，标志位还是false
+                // 所以此时下一个读请求是从缓存中拿不到数据的，再放一个读Request进队列，让数据去刷新一下
+                // 2、可能在200ms内，就是读请求在队列中一直积压着，没有等待到它执行（在实际生产环境中，基本是比较坑了）
+                // 所以就直接查一次库，然后给队列里塞进去一个刷新缓存的请求
+                // 3、数据库里本身就没有，缓存穿透，穿透redis，请求到达mysql库
+                request = new ProductInventoryCacheRefreshRequest(productId, productInventoryService, true);
+                requestAsyncProcessService.process(request);
                 return productInventory;
             }
         } catch (Exception e) {
