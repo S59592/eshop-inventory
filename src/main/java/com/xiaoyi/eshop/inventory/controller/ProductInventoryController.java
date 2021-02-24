@@ -7,6 +7,8 @@ import com.xiaoyi.eshop.inventory.request.Request;
 import com.xiaoyi.eshop.inventory.service.ProductInventoryService;
 import com.xiaoyi.eshop.inventory.service.RequestAsyncProcessService;
 import com.xiaoyi.eshop.inventory.vo.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -21,6 +23,8 @@ import javax.annotation.Resource;
 @Controller
 public class ProductInventoryController {
 
+    private final Logger logger = LoggerFactory.getLogger(ProductInventoryController.class);
+
     @Resource
     private RequestAsyncProcessService requestAsyncProcessService;
     @Resource
@@ -32,17 +36,14 @@ public class ProductInventoryController {
     @RequestMapping("/updateProductInventory")
     @ResponseBody
     public Response updateProductInventory(ProductInventory productInventory) {
-        // 为了简单起见，我们就不用log4j那种日志框架去打印日志了
-        // 其实log4j也很简单，实际企业中都是用log4j去打印日志的，自己百度一下
-        System.out.println("===========日志===========: 接收到更新商品库存的请求，商品id=" + productInventory.getProductId() + ", 商品库存数量=" + productInventory.getInventoryCnt());
-
+        logger.info("接收到更新商品库存的请求，商品id= {}, 商品库存数量= {}", productInventory.getProductId(), productInventory.getInventoryCnt());
         Response response = null;
         try {
             Request request = new ProductInventoryDBUpdateRequest(productInventory, productInventoryService);
             requestAsyncProcessService.process(request);
             response = new Response(Response.SUCCESS);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("更新商品库存，错误信息为：{} ", e.getMessage(), e);
             response = new Response(Response.FAILURE);
         }
         return response;
@@ -54,20 +55,16 @@ public class ProductInventoryController {
     @RequestMapping("/getProductInventory")
     @ResponseBody
     public ProductInventory getProductInventory(Integer productId) {
-        System.out.println("===========日志===========: 接收到一个商品库存的读请求，商品id=" + productId);
-
+        logger.info("接收到一个商品库存的读请求，商品id= {}", productId);
         ProductInventory productInventory = null;
-
         try {
             Request request = new ProductInventoryCacheRefreshRequest(productId, productInventoryService, false);
             requestAsyncProcessService.process(request);
-
             // 将请求扔给service异步去处理以后，就需要while(true)一会儿，在这里hang住
             // 去尝试等待前面有商品库存更新的操作，同时缓存刷新的操作，将最新的数据刷新到缓存中
             long startTime = System.currentTimeMillis();
             long endTime = 0L;
             long waitTime = 0L;
-
             while (true) {
                 // 一般公司里面，面向用户的读请求控制在200ms就可以了
                 if(waitTime > 200) {
@@ -77,7 +74,7 @@ public class ProductInventoryController {
                 productInventory = productInventoryService.getProductInventoryCache(productId);
                 // 如果读取到了结果，那么就返回
                 if(productInventory != null) {
-                    System.out.println("===========日志===========: 在200ms内读取到了redis中的库存缓存，商品id=" + productInventory.getProductId() + ", 商品库存数量=" + productInventory.getInventoryCnt());
+                    logger.info("在200ms内读取到了redis中的库存缓存，商品id= {}, 商品库存数量= {}", productInventory.getProductId(), productInventory.getInventoryCnt());
                     return productInventory;
                 } else { // 如果没有读取到结果，那么等待一段时间
                     Thread.sleep(20);
@@ -99,7 +96,7 @@ public class ProductInventoryController {
                 return productInventory;
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("获取商品库存，错误信息为：{} ", e.getMessage(), e);
         }
         return new ProductInventory(productId, -1L);
     }

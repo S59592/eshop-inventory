@@ -3,6 +3,7 @@ package com.xiaoyi.eshop.inventory.service.impl;
 import com.xiaoyi.eshop.inventory.request.Request;
 import com.xiaoyi.eshop.inventory.request.RequestQueue;
 import com.xiaoyi.eshop.inventory.service.RequestAsyncProcessService;
+import org.springframework.stereotype.Service;
 
 import java.util.concurrent.ArrayBlockingQueue;
 
@@ -10,6 +11,7 @@ import java.util.concurrent.ArrayBlockingQueue;
  * 请求异步处理的service实现
  * @author Dong Jie
  */
+@Service(value="requestAsyncProcessService")
 public class RequestAsyncProcessServiceImpl implements RequestAsyncProcessService {
 
     @Override
